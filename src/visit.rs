@@ -1,13 +1,13 @@
 use std::iter::FromIterator;
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{
     parse_quote,
     punctuated::Punctuated,
     visit_mut::{self, visit_item_mut, visit_path_segment_mut, VisitMut},
-    Expr, ExprBlock, File, GenericArgument, GenericParam, Item, PathArguments, PathSegment, Type,
-    TypeParamBound, WherePredicate,
+    Attribute, AttributeArgs, Expr, ExprBlock, ExprClosure, File, GenericArgument, GenericParam,
+    Item, Meta, PathArguments, PathSegment, Token, Type, TypeParamBound, WherePredicate,
 };
 
 pub struct ReplaceGenericType<'a> {
@@ -111,22 +111,39 @@ impl VisitMut for AsyncAwaitRemoval {
 
         match node {
             Expr::Await(expr) => *node = (*expr.base).clone(),
-
             Expr::Async(expr) => {
                 let inner = &expr.block;
-                let sync_expr = if inner.stmts.len() == 1 {
-                    // remove useless braces when there is only one statement
-                    let stmt = &inner.stmts.get(0).unwrap();
-                    // convert statement to Expr
-                    parse_quote!(#stmt)
-                } else {
-                    Expr::Block(ExprBlock {
+                // let sync_expr = if inner.stmts.len() == 1 {
+                //     // remove useless braces when there is only one statement
+                //     let stmt = &inner.stmts.get(0).unwrap();
+                //     // convert statement to Expr
+                //     parse_quote!(#stmt)
+                // } else {
+                // Expr::Block(ExprBlock {
+                //     attrs: expr.attrs.clone(),
+                //     block: inner.clone(),
+                //     label: None,
+                // })
+                // };
+                let sync_expr = Expr::Closure(ExprClosure {
+                    attrs: expr.attrs.clone(),
+                    movability: None,
+                    asyncness: None,
+                    capture: expr.capture,
+                    or1_token: Token!(|)(expr.async_token.span.clone()),
+                    inputs: Punctuated::new(),
+                    or2_token: Token!(|)(expr.async_token.span.clone()),
+                    output: syn::ReturnType::Default,
+                    body: Box::new(Expr::Block(ExprBlock {
                         attrs: expr.attrs.clone(),
                         block: inner.clone(),
                         label: None,
-                    })
-                };
+                    })),
+                });
                 *node = sync_expr;
+            }
+            Expr::Closure(expr) => {
+                expr.asyncness = None;
             }
             _ => {}
         }

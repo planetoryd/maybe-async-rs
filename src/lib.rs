@@ -288,8 +288,8 @@ use proc_macro::TokenStream;
 use proc_macro2::{Group, Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{
-    parse_macro_input, punctuated::Punctuated, spanned::Spanned, AttributeArgs, ImplItem, Lit,
-    Meta, NestedMeta, Signature, TraitItem,
+    parse_macro_input, punctuated::Punctuated, spanned::Spanned, AttributeArgs, Error, ImplItem,
+    Lit, Meta, NestedMeta, Signature, TraitItem,
 };
 
 use crate::{
@@ -306,23 +306,23 @@ fn convert_async(input: TokenStream) -> TokenStream {
 
 fn convert_sync(input: &mut Item, sig: Option<Signature>) -> TokenStream {
     match input {
+        Item::Mod(item) => {
+            if item.content.is_none() {
+                Error::new(item.span(), "useless annonation").to_compile_error()
+            } else {
+                proc_mod(item);
+                AsyncAwaitRemoval.remove_async_await(quote!(#item))
+            }
+        }
         Item::Impl(item) => {
             for inner in &mut item.items {
-                if let ImplItem::Method(ref mut method) = inner {
-                    if method.sig.asyncness.is_some() {
-                        method.sig.asyncness = None;
-                    }
-                }
+                process_impl(inner);
             }
             AsyncAwaitRemoval.remove_async_await(quote!(#item))
         }
         Item::Trait(item) => {
             for inner in &mut item.items {
-                if let TraitItem::Method(ref mut method) = inner {
-                    if method.sig.asyncness.is_some() {
-                        method.sig.asyncness = None;
-                    }
-                }
+                process_trait_item(inner);
             }
             AsyncAwaitRemoval.remove_async_await(quote!(#item))
         }
@@ -347,6 +347,50 @@ fn convert_sync(input: &mut Item, sig: Option<Signature>) -> TokenStream {
         Item::Static(item) => AsyncAwaitRemoval.remove_async_await(quote!(#item)),
     }
     .into()
+}
+
+fn proc_mod(item: &mut syn::ItemMod) {
+    if let Some((b, m)) = &mut item.content {
+        for item in m {
+            match item {
+                syn::Item::Impl(imp) => {
+                    for inner in &mut imp.items {
+                        process_impl(inner);
+                    }
+                }
+                syn::Item::Fn(item) => {
+                    if item.sig.asyncness.is_some() {
+                        item.sig.asyncness = None;
+                    }
+                }
+                syn::Item::Trait(item) => {
+                    for inner in &mut item.items {
+                        process_trait_item(inner);
+                    }
+                }
+                syn::Item::Mod(item) => {
+                    proc_mod(item);
+                }
+                _ => (),
+            }
+        }
+    }
+}
+
+fn process_trait_item(inner: &mut TraitItem) {
+    if let TraitItem::Method(ref mut method) = inner {
+        if method.sig.asyncness.is_some() {
+            method.sig.asyncness = None;
+        }
+    }
+}
+
+fn process_impl(inner: &mut ImplItem) {
+    if let ImplItem::Method(ref mut method) = inner {
+        if method.sig.asyncness.is_some() {
+            method.sig.asyncness = None;
+        }
+    }
 }
 
 /// maybe_async(fn signature for sync goes here)
