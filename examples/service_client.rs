@@ -9,7 +9,7 @@ type Method = String;
 
 /// InnerClient are used to actually send request,
 /// which differ a lot between sync and async.
-#[maybe_async::maybe_async]
+#[maybe_async::maybe]
 trait InnerClient {
     async fn request(method: Method, url: Url, data: String) -> Response;
     #[inline]
@@ -28,7 +28,7 @@ pub struct ServiceClient;
 /// Synchronous  implementation, only compiles when `is_sync` feature is off.
 /// Else the compiler will complain that *request is defined multiple times* and
 /// blabla.
-#[maybe_async::sync_impl]
+#[maybe_async::msync]
 impl InnerClient for ServiceClient {
     fn request(method: Method, url: Url, data: String) -> Response {
         // your implementation for sync, like use
@@ -38,7 +38,7 @@ impl InnerClient for ServiceClient {
 }
 
 /// Asynchronous implementation, only compiles when `is_sync` feature is off.
-#[maybe_async::async_impl]
+#[maybe_async::masyn]
 impl InnerClient for ServiceClient {
     async fn request(method: Method, url: Url, data: String) -> Response {
         // your implementation for async, like use `reqwest::client`
@@ -50,26 +50,27 @@ impl InnerClient for ServiceClient {
 /// Code of upstream API are almost the same for sync and async,
 /// except for async/await keyword.
 impl ServiceClient {
-    #[maybe_async::maybe_async]
+    #[maybe_async::maybe]
     async fn create_bucket(name: String) -> Response {
         Self::post("http://correct_url4create", String::from("my_bucket")).await
         // When `is_sync` is toggle on, this block will compiles to:
         // Self::post("http://correct_url4create", String::from("my_bucket"))
     }
-    #[maybe_async::maybe_async]
+    #[maybe_async::maybe]
     async fn delete_bucket(name: String) -> Response {
         Self::delete("http://correct_url4delete", String::from("my_bucket")).await
     }
     // and another thousands of functions that interact with service side
 }
 
-#[maybe_async::sync_impl]
+#[maybe_async::msync]
 fn main() {
     let _ = ServiceClient::create_bucket("bucket".to_owned());
 }
 
-#[maybe_async::async_impl]
+#[maybe_async::masyn]
 #[tokio::main]
 async fn main() {
     let _ = ServiceClient::create_bucket("bucket".to_owned()).await;
 }
+

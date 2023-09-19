@@ -1,6 +1,6 @@
 use maybe_async::maybe_async;
 
-#[maybe_async]
+#[maybe]
 async fn async_fn() -> bool {
     true
 }
