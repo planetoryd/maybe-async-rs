@@ -286,11 +286,11 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use syn::{
-    parse_macro_input, spanned::Spanned, AttributeArgs, ImplItem, Lit, Meta, NestedMeta, TraitItem,
-};
-
 use quote::quote;
+use syn::{
+    parse_macro_input, spanned::Spanned, AttributeArgs, ImplItem, Lit, Meta, NestedMeta,
+    TraitItem
+};
 
 use crate::{parse::Item, visit::AsyncAwaitRemoval};
 
@@ -298,22 +298,21 @@ mod parse;
 mod visit;
 
 fn convert_async(input: &mut Item, send: bool) -> TokenStream2 {
-    if send {
+    TokenStream2::from(if send {
         match input {
-            Item::Impl(item) => quote!(#[async_trait::async_trait]#item),
-            Item::Trait(item) => quote!(#[async_trait::async_trait]#item),
+            Item::Impl(item) => quote!(#item),
+            Item::Trait(item) => quote!(#item),
             Item::Fn(item) => quote!(#item),
             Item::Static(item) => quote!(#item),
         }
     } else {
         match input {
-            Item::Impl(item) => quote!(#[async_trait::async_trait(?Send)]#item),
-            Item::Trait(item) => quote!(#[async_trait::async_trait(?Send)]#item),
+            Item::Impl(item) => quote!(#item),
+            Item::Trait(item) => quote!(#item),
             Item::Fn(item) => quote!(#item),
             Item::Static(item) => quote!(#item),
         }
-    }
-    .into()
+    })
 }
 
 fn convert_sync(input: &mut Item) -> TokenStream2 {
@@ -365,7 +364,6 @@ pub fn maybe_async(args: TokenStream, input: TokenStream) -> TokenStream {
     };
 
     let mut item = parse_macro_input!(input as Item);
-
     let token = if cfg!(feature = "is_sync") {
         convert_sync(&mut item)
     } else {
